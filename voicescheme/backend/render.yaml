@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: voicescheme-api
+    runtime: python
+    region: singapore   # closest to India
+    plan: free
+    buildCommand: pip install -r requirements.txt && python init_db.py
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+    healthCheckPath: /api/health
+    autoDeploy: true
