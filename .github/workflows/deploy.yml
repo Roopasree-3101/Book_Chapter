@@ -5,6 +5,12 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Required permissions for GitHub Pages deployment
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
 jobs:
   # ── Deploy frontend to GitHub Pages ──────────────────────────────────────
   deploy-frontend:
@@ -39,6 +45,7 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: voicescheme/frontend/build
           publish_branch: gh-pages
+          force_orphan: true
 
   # ── Test backend ──────────────────────────────────────────────────────────
   test-backend:
@@ -67,5 +74,5 @@ jobs:
           from eligibility import filter_schemes
           r = filter_schemes({'is_bpl': True})
           assert len(r) > 0, 'No schemes returned for BPL profile'
-          print('Backend OK —', len(r), 'schemes for BPL profile')
+          print('Backend OK -', len(r), 'schemes for BPL profile')
           "
