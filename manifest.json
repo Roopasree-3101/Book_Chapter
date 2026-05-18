@@ -1,0 +1,19 @@
+{
+  "short_name": "VoiceScheme",
+  "name": "VoiceScheme — Government Welfare Scheme Finder",
+  "description": "AI-Powered Multilingual Voice Chatbot for discovering Government Welfare Schemes for Rural BPL Families",
+  "icons": [
+    {
+      "src": "favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#1d4ed8",
+  "background_color": "#eff6ff",
+  "lang": "en",
+  "categories": ["government", "utilities", "productivity"],
+  "orientation": "portrait-primary"
+}
