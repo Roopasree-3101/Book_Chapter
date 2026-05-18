@@ -26,6 +26,169 @@ DB_PATH = os.path.join(os.path.dirname(__file__), "data", "cache.db")
 
 
 # ---------------------------------------------------------------------------
+# Root route — Visual dashboard (visible in browser)
+# ---------------------------------------------------------------------------
+@app.route("/", methods=["GET"])
+def dashboard():
+    """Browser-visible status dashboard for VoiceScheme API."""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        total_queries = conn.execute("SELECT COUNT(*) FROM query_log").fetchone()[0]
+        total_feedback = conn.execute("SELECT COUNT(*) FROM feedback").fetchone()[0]
+        recent = conn.execute(
+            "SELECT query_text, language, result_count, timestamp FROM query_log ORDER BY timestamp DESC LIMIT 5"
+        ).fetchall()
+        by_lang = conn.execute(
+            "SELECT language, COUNT(*) as c FROM query_log GROUP BY language ORDER BY c DESC"
+        ).fetchall()
+        conn.close()
+    except Exception:
+        total_queries = 0
+        total_feedback = 0
+        recent = []
+        by_lang = []
+
+    from eligibility import get_all_categories, load_schemes
+    schemes = load_schemes()
+    categories = sorted(get_all_categories())
+
+    lang_rows = "".join(
+        f"<tr><td>{r[0]}</td><td><b>{r[1]}</b></td></tr>" for r in by_lang
+    ) or "<tr><td colspan='2'>No queries yet</td></tr>"
+
+    recent_rows = "".join(
+        f"<tr><td>{r[0][:40]}...</td><td>{r[1]}</td><td>{r[2]}</td><td>{r[3][:16]}</td></tr>"
+        for r in recent
+    ) or "<tr><td colspan='4'>No queries yet — try the frontend!</td></tr>"
+
+    cat_pills = "".join(
+        f"<span class='pill'>{c}</span>" for c in categories
+    )
+
+    endpoints = [
+        ("GET",  "/",                  "This dashboard"),
+        ("GET",  "/api/health",        "Health check"),
+        ("POST", "/api/query",         "NLP query → schemes"),
+        ("POST", "/api/tts",           "Text-to-speech audio"),
+        ("GET",  "/api/schemes",       "List/filter schemes"),
+        ("GET",  "/api/schemes/&lt;id&gt;", "Single scheme detail"),
+        ("GET",  "/api/categories",    "All categories"),
+        ("GET",  "/api/stats",         "Query analytics"),
+        ("POST", "/api/feedback",      "Scheme feedback"),
+    ]
+    ep_rows = "".join(
+        f"<tr><td><span class='method method-{m.lower()}'>{m}</span></td>"
+        f"<td><code>{path}</code></td><td>{desc}</td>"
+        f"<td><a href='{path if m=='GET' and '<' not in path else '#'}' "
+        f"{'target=_blank' if m=='GET' and '<' not in path else ''}>{'Try ↗' if m=='GET' and '<' not in path else '—'}</a></td></tr>"
+        for m, path, desc in endpoints
+    )
+
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>VoiceScheme API — Dashboard</title>
+<meta http-equiv="refresh" content="30"/>
+<style>
+  *{{box-sizing:border-box;margin:0;padding:0}}
+  body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f0f4ff;color:#1e293b}}
+  header{{background:#1d4ed8;color:#fff;padding:20px 32px;display:flex;align-items:center;justify-content:space-between}}
+  header h1{{font-size:1.4rem;font-weight:700}}
+  header p{{font-size:.8rem;color:#bfdbfe;margin-top:3px}}
+  .badge{{background:#22c55e;color:#fff;font-size:.75rem;padding:4px 14px;border-radius:999px;font-weight:700;letter-spacing:.05em}}
+  main{{max-width:960px;margin:0 auto;padding:28px 20px;display:grid;grid-template-columns:1fr 1fr;gap:20px}}
+  .card{{background:#fff;border-radius:14px;border:1px solid #e2e8f0;padding:20px;box-shadow:0 1px 4px rgba(0,0,0,.06)}}
+  .card.full{{grid-column:1/-1}}
+  .card h2{{font-size:.85rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:14px}}
+  .stat-grid{{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}}
+  .stat{{background:#f8fafc;border-radius:10px;padding:14px;text-align:center}}
+  .stat .num{{font-size:2rem;font-weight:800;color:#1d4ed8}}
+  .stat .lbl{{font-size:.72rem;color:#64748b;margin-top:3px}}
+  table{{width:100%;border-collapse:collapse;font-size:.82rem}}
+  th{{text-align:left;padding:8px 10px;background:#f8fafc;color:#64748b;font-weight:600;font-size:.75rem;text-transform:uppercase}}
+  td{{padding:8px 10px;border-top:1px solid #f1f5f9;vertical-align:middle}}
+  tr:hover td{{background:#fafbff}}
+  code{{background:#f1f5f9;padding:2px 7px;border-radius:5px;font-size:.8rem;color:#1d4ed8}}
+  .method{{display:inline-block;padding:2px 8px;border-radius:5px;font-size:.72rem;font-weight:700}}
+  .method-get{{background:#dbeafe;color:#1d4ed8}}
+  .method-post{{background:#dcfce7;color:#15803d}}
+  .pill{{display:inline-block;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:999px;padding:3px 10px;font-size:.72rem;margin:2px}}
+  a{{color:#3b82f6;text-decoration:none}}
+  a:hover{{text-decoration:underline}}
+  .dot{{width:10px;height:10px;background:#22c55e;border-radius:50%;display:inline-block;margin-right:6px;animation:blink 2s infinite}}
+  @keyframes blink{{0%,100%{{opacity:1}}50%{{opacity:.4}}}}
+  .refresh{{font-size:.72rem;color:#94a3b8;text-align:right;margin-top:8px}}
+  footer{{text-align:center;font-size:.72rem;color:#94a3b8;padding:20px;border-top:1px solid #e2e8f0;margin-top:8px}}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>🎙️ VoiceScheme API</h1>
+    <p>AI-Powered Multilingual Government Welfare Scheme Finder — Backend Dashboard</p>
+  </div>
+  <span class="badge"><span class="dot"></span>RUNNING</span>
+</header>
+<main>
+
+  <!-- Stats -->
+  <div class="card full">
+    <h2>📊 Live Statistics</h2>
+    <div class="stat-grid">
+      <div class="stat"><div class="num">{len(schemes)}</div><div class="lbl">Schemes Loaded</div></div>
+      <div class="stat"><div class="num">{total_queries}</div><div class="lbl">Queries Processed</div></div>
+      <div class="stat"><div class="num">{total_feedback}</div><div class="lbl">Feedback Received</div></div>
+    </div>
+    <p class="refresh">Auto-refreshes every 30 seconds</p>
+  </div>
+
+  <!-- API Endpoints -->
+  <div class="card full">
+    <h2>🔌 API Endpoints</h2>
+    <table>
+      <tr><th>Method</th><th>Endpoint</th><th>Description</th><th>Test</th></tr>
+      {ep_rows}
+    </table>
+  </div>
+
+  <!-- Language breakdown -->
+  <div class="card">
+    <h2>🌐 Queries by Language</h2>
+    <table>
+      <tr><th>Language</th><th>Count</th></tr>
+      {lang_rows}
+    </table>
+  </div>
+
+  <!-- Recent queries -->
+  <div class="card">
+    <h2>🕐 Recent Queries</h2>
+    <table>
+      <tr><th>Query</th><th>Lang</th><th>Results</th><th>Time</th></tr>
+      {recent_rows}
+    </table>
+  </div>
+
+  <!-- Categories -->
+  <div class="card full">
+    <h2>📂 Scheme Categories ({len(categories)} total)</h2>
+    <div style="margin-top:4px">{cat_pills}</div>
+  </div>
+
+</main>
+<footer>
+  VoiceScheme Backend v1.0.0 · Port 5001 · 
+  Frontend → <a href="http://localhost:3005/Book_Chapter" target="_blank">localhost:3005/Book_Chapter</a> ·
+  Data from <a href="https://myscheme.gov.in" target="_blank">myscheme.gov.in</a>
+</footer>
+</body>
+</html>"""
+    return html
+
+
+# ---------------------------------------------------------------------------
 # Helper: log query to SQLite for analytics
 # ---------------------------------------------------------------------------
 def log_query(query_text: str, language: str, intents: list, result_count: int):
@@ -95,42 +258,34 @@ def query():
 
     # Determine category filter from intents
     intents = nlp_result["intents"]
-    # Only use category filter if a specific non-general intent was detected
-    # AND the query is short/focused (not a general "I am a BPL farmer" description)
     category = intents[0] if intents and "general" not in intents else None
 
     # Build keyword from original text for matching
     keyword = text if len(text.split()) <= 6 else " ".join(nlp_result["keywords"][:5])
 
-    # Strategy: try progressively relaxed filters until we get results
-    # 1. Try with both category and keyword
+    # Strategy: progressively relaxed filters
     schemes = filter_schemes(profile=profile, keyword=keyword, category=category)
-
-    # 2. If no results, drop keyword (keep category)
     if not schemes and category:
         schemes = filter_schemes(profile=profile, category=category)
-
-    # 3. If still no results, drop category (keep keyword)
     if not schemes and keyword:
         schemes = filter_schemes(profile=profile, keyword=keyword)
-
-    # 4. If still no results, return all eligible schemes (profile only)
     if not schemes:
         schemes = filter_schemes(profile=profile)
-
-    # 5. If profile is too restrictive and still nothing, return top schemes
     if not schemes:
         schemes = filter_schemes(profile={})
 
-    # Boost: if we got very few results (1-2) and there's a profile, add more eligible ones
+    # Boost: if fewer than 3 results, add more eligible ones
     if len(schemes) < 3 and profile:
         extra = filter_schemes(profile=profile)
-        # Merge without duplicates, keeping original first
         seen_ids = {s["id"] for s in schemes}
         for s in extra:
             if s["id"] not in seen_ids:
                 schemes.append(s)
                 seen_ids.add(s["id"])
+
+    # Rank by relevance score
+    from nlp_engine import score_scheme
+    schemes.sort(key=lambda s: score_scheme(s, text, intents), reverse=True)
 
     # Limit to top 5 results
     schemes = schemes[:5]
@@ -301,4 +456,4 @@ def feedback():
 
 
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    app.run(debug=True, host="0.0.0.0", port=5001)

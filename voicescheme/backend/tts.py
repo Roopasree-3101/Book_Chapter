@@ -36,19 +36,20 @@ def text_to_speech(text: str, lang: str = "en") -> bytes:
 
 
 def build_scheme_summary(scheme: dict, lang: str = "en") -> str:
-    """
-    Build a short spoken summary of a scheme for TTS output.
-    Uses Hindi description if lang is 'hi', else English.
-    """
-    if lang == "hi" and scheme.get("name_hi"):
-        name = scheme["name_hi"]
-        desc = scheme.get("description_hi", scheme.get("description", ""))
-    else:
-        name = scheme["name"]
-        desc = scheme.get("description", "")
+    """Build a spoken summary using the correct language fields."""
+    def loc(field):
+        return scheme.get(f"{field}_{lang}") or scheme.get(field, "")
 
-    benefits = scheme.get("benefits", "")
-    how = scheme.get("how_to_apply", "")
+    name     = loc("name")
+    desc     = loc("description")
+    benefits = loc("benefits")
+    apply    = loc("how_to_apply")
+    who      = loc("who_can_apply")
 
-    summary = f"{name}. {desc}. Benefits: {benefits}. How to apply: {how}."
-    return summary
+    parts = [name, desc]
+    if who:
+        parts.append(who)
+    parts.append(f"Benefits: {benefits}" if lang == "en" else benefits)
+    parts.append(apply)
+
+    return ". ".join(p for p in parts if p)
