@@ -62,7 +62,7 @@ The scope of the current implementation covers fifteen major central government 
 
 ### 1.5 Chapter Organisation
 
-The remainder of this chapter is organised as follows. Section 2 reviews relevant literature across voice interfaces, multilingual NLP, e-governance, and welfare scheme awareness. Section 3 presents the problem formulation and design requirements. Section 4 describes the system architecture in detail. Section 5 explains the methodology for NLP, eligibility filtering, and multilingual content. Section 6 covers the implementation with technology choices and API design. Section 7 presents evaluation results. Section 8 discusses limitations and future directions. Section 9 concludes the chapter.
+The remainder of this chapter is organised as follows. Section 2 reviews relevant literature across voice interfaces, multilingual NLP, e-governance, and welfare scheme awareness. Section 3 presents the problem formulation and design requirements. Section 4 describes the system architecture in detail. Section 5 explains the methodology for NLP, eligibility filtering, and multilingual content. Section 6 covers the implementation with technology choices and API design. Section 7 provides a comprehensive description of every frontend and backend feature. Section 8 presents evaluation results. Section 9 discusses limitations and future directions. Section 10 concludes the chapter.
 
 ---
 
@@ -461,7 +461,305 @@ A browser-accessible analytics dashboard is implemented at the root URL of the F
 
 ---
 
-## 7. Results and Discussion
+## 7. System Features: Frontend and Backend
+
+This section provides a comprehensive description of every feature implemented in VoiceScheme, covering both the React.js frontend and the Flask backend. Each feature is described in terms of its purpose, implementation mechanism, and contribution to the overall user experience.
+
+---
+
+### 7.1 Frontend Features
+
+The VoiceScheme frontend is a React.js 18 Progressive Web Application comprising six components, four language translation files, a global CSS stylesheet, and an application entry point. The frontend communicates with the backend exclusively through HTTP REST calls using the Axios library. All user-facing text is internationalised through i18next, and all styling is implemented using Tailwind CSS utility classes.
+
+#### 7.1.1 Voice Input (VoiceInput.jsx)
+
+The voice input feature is the centrepiece of VoiceScheme's accessibility proposition. It is implemented using the Web Speech API, a browser-native standard that enables speech recognition without any external service, API key, or network dependency beyond the browser itself.
+
+**Microphone button**: A large circular button (96×96 pixels) occupies the centre of the voice input card. The button is sized deliberately large to accommodate users with limited fine motor control or those using the application on small smartphone screens. When idle, the button displays a microphone emoji (🎤) and the localised label "Speak" in the selected language. When active, the button turns red, displays a speaking emoji (🎙️), shows the localised "Stop" label, and applies a pulsing ring animation (implemented as a CSS keyframe animation) to provide clear visual feedback that the system is listening.
+
+**Language-aware recognition**: The recognition language is set dynamically based on the user's selected interface language. The mapping is: English → en-IN (Indian English), Hindi → hi-IN, Tamil → ta-IN, Telugu → te-IN. Using Indian locale codes rather than generic codes (en-US, hi) improves recognition accuracy for Indian-accented speech and Indian vocabulary.
+
+**Interim results display**: As the user speaks, interim recognition results are displayed in real time in the text input field below the microphone button. This provides immediate visual confirmation that the system is capturing speech, reducing user anxiety about whether the microphone is working.
+
+**Automatic submission**: When the speech recognition engine produces a final result (indicated by the `isFinal` flag in the recognition event), the query is automatically submitted without requiring the user to press a search button. This creates a seamless speak-and-receive interaction flow.
+
+**Text input fallback**: A text input field and search button are provided below the microphone button for users in noisy environments, users on browsers that do not support the Web Speech API (Firefox, Safari), or users who prefer typing. The text field and voice input share the same state, so a user can speak to populate the field and then edit the text before submitting.
+
+**Browser compatibility notice**: If the Web Speech API is not available, a descriptive amber-coloured notice is displayed below the input area informing the user that voice input requires Chrome or Edge, without hiding or disabling the text input fallback.
+
+#### 7.1.2 Language Selector (LanguageSelector.jsx)
+
+The language selector provides one-tap switching between the four supported languages. It is rendered as a horizontal row of pill-shaped buttons, each labelled in its own script: "English", "हिंदी", "தமிழ்", "తెలుగు".
+
+**Simultaneous locale and recognition update**: Tapping a language button triggers two simultaneous updates: the i18next locale is changed (updating all UI labels, category names, and status messages), and the voice recognition language is updated (so the next voice query is recognised in the new language). This ensures that the entire interface — both visual and auditory — responds to the language selection immediately.
+
+**Visual state**: The currently selected language button is highlighted with a blue background and white text. Unselected buttons use a light grey background. The active state is managed through the `aria-pressed` attribute, ensuring screen reader compatibility.
+
+**Persistence within session**: The selected language is stored in React component state and persists for the duration of the browser session. It is not stored in localStorage or cookies, consistent with the system's privacy-first design.
+
+#### 7.1.3 Category Filter Bar (CategoryFilter.jsx)
+
+The category filter bar provides a browse-by-category alternative to voice or text search, enabling users who do not know what to search for to discover schemes by topic area.
+
+**Horizontal scrollable layout**: Fourteen category pills are arranged in a horizontally scrollable row. The row uses CSS `overflow-x: auto` with the `scrollbar-hide` utility class to hide the scrollbar on all platforms, creating a clean swipeable interface. The `-webkit-overflow-scrolling: touch` property enables momentum scrolling on iOS devices.
+
+**Emoji icons**: Each category pill displays an emoji icon alongside the translated category name. The icons provide immediate visual recognition for users with limited literacy: 🌾 for Agriculture, 🏠 for Housing, 🍚 for Food and Ration, 🏥 for Health, 💼 for Employment, 📚 for Education, 👴 for Pension, 🛡️ for Insurance, 🏦 for Banking, 🎓 for Skill Training, 👩‍👧 for Women and Child, 🏭 for Entrepreneurship, 🔥 for Energy, and 🏛️ for All Schemes.
+
+**Active state**: The currently selected category pill is highlighted with a blue background. Tapping a different pill deselects the current one and triggers a filtered scheme query to the backend `/api/schemes` endpoint.
+
+**Translated labels**: All fourteen category names are translated into all four supported languages through the i18next translation files. When the user switches language, the category labels update immediately without requiring a page reload.
+
+#### 7.1.4 Profile Form (ProfileForm.jsx)
+
+The profile form allows users to specify their demographic and socioeconomic characteristics, enabling the eligibility engine to filter schemes more precisely.
+
+**Collapsible design**: The form is hidden by default and revealed by tapping a "Set your profile for better results" toggle button. This keeps the interface uncluttered for users who do not wish to provide profile information, while making the feature easily accessible for those who do.
+
+**BPL checkbox**: A prominently placed checkbox labelled with the localised "BPL Card Holder" text allows users to indicate their BPL status. This is the single most important eligibility criterion, as many schemes are restricted to BPL households.
+
+**Age input**: A numeric input field accepts the user's age. The field has `min="0"` and `max="120"` constraints to prevent invalid values. Age is used to filter schemes with age restrictions, such as the Sukanya Samriddhi Yojana (for girls aged 0–10) and the IGNOAPS Old Age Pension (for citizens aged 60 and above).
+
+**Gender dropdown**: A dropdown with options "Any", "Male", and "Female" allows users to specify their gender. This is used to filter gender-restricted schemes such as the Ujjwala Yojana (women only) and the Sukanya Samriddhi Yojana (female child only).
+
+**Social category dropdown**: A dropdown with options "General", "SC", "ST", and "OBC" allows users to specify their social category. This is used to filter schemes restricted to specific categories, such as the Pre-Matric Scholarship for SC/ST students.
+
+**Occupation dropdown**: A dropdown with options "Any", "Farmer", "Student", "Labourer", "Unemployed", and "Artisan" allows users to specify their occupation. This is used in conjunction with NLP-extracted occupation hints to improve scheme relevance.
+
+**Privacy guarantee**: Profile data is stored exclusively in React component state (in-memory). It is transmitted to the backend only as part of query requests and is never stored, logged with personally identifiable information, or transmitted to any third party.
+
+#### 7.1.5 Scheme Card (SchemeCard.jsx)
+
+The scheme card is the primary information display component. Each card presents a complete scheme record in the user's chosen language, with all actionable information translated.
+
+**Header section**: The card header displays the scheme's category emoji icon, the localised scheme name in bold, a category badge pill, and the administering ministry name. The header also contains two action buttons: an audio playback button (🔊) and a share button (📤).
+
+**Who Can Apply panel**: A blue-tinted panel immediately below the header displays the localised eligibility summary — a plain-language description of who is eligible for the scheme. For example, for the IGNOAPS Old Age Pension in Hindi, this panel displays "60 वर्ष और उससे अधिक आयु के बीपीएल वृद्ध नागरिक". This panel is new in the Phase 2 implementation and addresses the key user complaint that scheme cards did not clearly communicate eligibility.
+
+**Description**: A concise description of the scheme is displayed in the selected language. For Hindi, the `description_hi` field is used; for Tamil and Telugu, the English description is displayed as a fallback (full Tamil and Telugu descriptions are identified as future work).
+
+**Benefits panel**: A green-tinted panel displays the localised benefits summary with the monetary amount prominently visible. For example, for PM-KISAN in Tamil, this displays "ஆண்டுக்கு ₹6000, ₹2000 வீதம் 3 தவணைகளில் நேரடியாக வங்கி கணக்கில்".
+
+**Expandable details section**: A "Learn More" toggle button reveals three additional sections: the application procedure (in an orange-tinted panel), the required documents (displayed as individual pill badges), and a link to the official government portal. The expand/collapse state is managed in component state and does not affect other cards.
+
+**Audio playback**: Tapping the 🔊 button triggers a POST request to the `/api/tts` endpoint with the scheme ID and current language. The backend generates an MP3 audio summary using gTTS and returns it as a base64-encoded string. The frontend decodes the base64 data, creates a Blob URL, and plays the audio through an HTML Audio element. The audio URL is cached in component state so that subsequent taps play the cached audio without a network request. If the backend is unavailable, the browser's SpeechSynthesis API is used as a fallback, reading the localised scheme name, description, benefits, and application procedure aloud.
+
+**Share functionality**: Tapping the 📤 button constructs a formatted text summary of the scheme in the current language and invokes the Web Share API (on mobile browsers that support it) or copies the text to the clipboard (on desktop browsers). A brief "✅ Copied!" confirmation replaces the share icon for two seconds after a successful clipboard copy.
+
+**Feedback row**: At the bottom of each card, a "Was this helpful?" prompt with 👍 Yes and 👎 No buttons allows users to rate the relevance of the scheme. After a rating is submitted, the buttons are disabled, the selected button is highlighted in green (for helpful) or red (for not helpful), and a "Thanks for your feedback!" message appears. The feedback is transmitted to the backend `/api/feedback` endpoint as an anonymous record containing only the scheme ID, the rating, and the current language.
+
+#### 7.1.6 Map View (MapView.jsx)
+
+The map view displays the locations of twelve Common Service Centres (CSCs) across India on an interactive map, helping users identify where they can apply for schemes in person.
+
+**Leaflet.js with OpenStreetMap**: The map is implemented using the react-leaflet library, which wraps the Leaflet.js mapping library. Map tiles are served by OpenStreetMap, a free and open geographic database. No API key is required for either Leaflet.js or OpenStreetMap tiles.
+
+**Lazy loading**: The MapView component is loaded lazily using React's `lazy` and `Suspense` APIs. This means the Leaflet.js library (approximately 152KB) is not downloaded until the user explicitly requests the map, keeping the initial page load fast.
+
+**Auto-fit to India**: A custom `FitIndia` component uses the Leaflet `fitBounds` method to automatically zoom and pan the map to show the entire Indian subcontinent when first rendered, regardless of the device screen size.
+
+**CSC markers**: Twelve markers are placed at the locations of Common Service Centres in Delhi, Mumbai, Chennai, Kolkata, Hyderabad, Bengaluru, Jaipur, Lucknow, Patna, Bhopal, Ahmedabad, and Chandigarh. Each marker popup displays the centre name, state, the categories of schemes that can be applied for at that centre (derived from the current search results), and a link to the CSC locator service at locator.csccloud.in.
+
+**Conditional display**: The map is shown only when search results are available and the user explicitly taps the "Show application centres on map" button. This prevents the map from consuming screen space when it is not needed.
+
+#### 7.1.7 Offline Fallback
+
+When the backend is unreachable (due to network unavailability or server downtime), the frontend automatically switches to an offline mode without displaying an error.
+
+**Client-side NLP**: A JavaScript implementation of the intent detection and eligibility filtering logic runs entirely in the browser. The offline NLP uses the same keyword table as the backend, ensuring consistent intent detection behaviour.
+
+**Embedded scheme database**: Eight of the fifteen schemes are embedded directly in the App.jsx component as a JavaScript array. These eight schemes cover the most commonly queried categories (agriculture, housing, food, banking, employment, energy, health, pension) and provide meaningful results for the majority of queries.
+
+**Offline banner**: When offline mode is active, an amber banner at the top of the page informs the user: "Running in offline mode — showing cached schemes. Start the backend for full results." This transparent communication prevents user confusion about why fewer results are shown.
+
+**Graceful degradation**: Voice input, language switching, category filtering, profile form, and scheme card display all continue to function normally in offline mode. Only the backend-dependent features (gTTS audio generation and analytics logging) are unavailable.
+
+#### 7.1.8 Statistics Counter
+
+A "queries served" counter is displayed in the application header, showing the total number of queries that have been processed by the backend since deployment. This counter is fetched from the `/api/stats` endpoint on application load and incremented locally after each successful query. The counter serves as a social proof indicator, demonstrating to users that the system is actively used.
+
+#### 7.1.9 Quick Search Buttons
+
+The welcome screen (displayed before any query has been made) includes five quick search buttons: "🌾 BPL Farmer", "🏥 Health", "🏠 Housing", "👴 Pension", and "🎓 Skill Training". Tapping any of these buttons populates the text input with a representative query and immediately submits it, allowing users to explore the system without knowing what to type or say.
+
+#### 7.1.10 Progressive Web Application (PWA) Features
+
+VoiceScheme is configured as a Progressive Web Application with a complete PWA manifest and meta tags.
+
+**Installability**: Users can add VoiceScheme to their smartphone home screen directly from the browser, creating an app-like icon without requiring an app store installation. The PWA manifest specifies the application name, short name, theme colour (blue, #1d4ed8), background colour, display mode (standalone), and orientation (portrait-primary).
+
+**Meta tags**: The public/index.html file includes Open Graph meta tags for social sharing, a theme-color meta tag for browser chrome colouring on Android, and a description meta tag for search engine indexing.
+
+**Responsive design**: All components are designed to be fully functional on screens ranging from 320px (small smartphones) to 1280px (desktop monitors). The maximum content width is constrained to 720px on large screens to maintain readability.
+
+---
+
+### 7.2 Backend Features
+
+The VoiceScheme backend is a Flask REST API comprising eight endpoints, three processing modules (NLP engine, eligibility engine, TTS engine), a JSON scheme database, and a SQLite analytics store. The backend is designed to be stateless, horizontally scalable, and deployable on any Python 3.9+ environment.
+
+#### 7.2.1 Health Check Endpoint (GET /api/health)
+
+The health check endpoint returns a JSON object confirming that the service is running, along with the service name and version number. It is used by the frontend to detect backend availability on application load, by the Render.com hosting platform for automatic health monitoring, and by the GitHub Actions CI/CD pipeline for smoke testing after deployment.
+
+```json
+GET /api/health
+Response: { "status": "ok", "service": "VoiceScheme API", "version": "1.0.0" }
+```
+
+The endpoint requires no authentication, accepts no parameters, and returns within two milliseconds on average.
+
+#### 7.2.2 Query Endpoint (POST /api/query)
+
+The query endpoint is the primary intelligence of the VoiceScheme backend. It accepts a natural language query, processes it through the NLP pipeline, filters the scheme database by eligibility, ranks results by relevance, logs the query for analytics, and returns the ranked scheme list.
+
+**Request structure**: The request body is a JSON object with three fields: `text` (required, the query string), `lang` (optional, the language code), and `profile` (optional, a partial user profile object).
+
+**NLP processing**: The query text is passed to the `process_query` function in nlp_engine.py, which returns the detected language, detected intents, extracted profile hints, and tokenised keywords.
+
+**Profile merging**: The NLP-extracted profile hints are merged with the explicitly provided profile, with explicit values taking precedence. This allows the system to use NLP-extracted hints when no explicit profile is provided, while respecting explicit profile values when they are available.
+
+**Progressive relaxation**: The eligibility engine is called up to five times with progressively relaxed filters until at least one result is found, as described in Section 5.5.
+
+**Relevance ranking**: The eligible schemes are sorted by the relevance scoring function described in Section 5.4, ensuring that the most relevant scheme appears first.
+
+**Query logging**: The query text, detected language, detected intents, and result count are written to the SQLite query_log table for analytics purposes.
+
+**Response structure**: The response includes the original query metadata (for debugging and transparency), the ranked scheme list with all translated fields, and the total count.
+
+#### 7.2.3 Text-to-Speech Endpoint (POST /api/tts)
+
+The TTS endpoint converts scheme information into spoken audio in the user's chosen language.
+
+**Input modes**: The endpoint accepts either a `scheme_id` (to generate a summary of a specific scheme) or a `text` string (to convert arbitrary text to speech). When a scheme ID is provided, the `build_scheme_summary` function constructs a spoken summary from the scheme's localised fields.
+
+**Multilingual summary construction**: The `build_scheme_summary` function uses the `loc` helper to retrieve the appropriate language variant of each field. For a Hindi request, the summary is constructed from `name_hi`, `description_hi`, `who_can_apply_hi`, `benefits_hi`, and `how_to_apply_hi`. The summary is structured as a natural spoken sentence rather than a list of field values, making it more comprehensible when read aloud.
+
+**gTTS integration**: The gTTS library is called with the constructed summary text and the target language code. It returns an MP3 audio stream, which is read into a BytesIO buffer and base64-encoded for transmission in the JSON response.
+
+**Error handling**: If gTTS fails (for example, due to network unavailability), the endpoint returns a 500 error with a descriptive message. The frontend handles this error by falling back to the browser's SpeechSynthesis API.
+
+#### 7.2.4 Schemes Listing Endpoint (GET /api/schemes)
+
+The schemes listing endpoint supports the category filter bar feature. It accepts query parameters for category, BPL status, gender, and keyword, and returns a filtered list of schemes without requiring a natural language query.
+
+```
+GET /api/schemes?category=health&is_bpl=true&gender=female
+```
+
+This endpoint is simpler than the query endpoint because it does not perform NLP processing or relevance ranking. It applies the eligibility filter directly to the scheme database and returns all matching schemes up to a configurable limit.
+
+#### 7.2.5 Scheme Detail Endpoint (GET /api/schemes/\<id\>)
+
+The scheme detail endpoint returns the complete record for a single scheme identified by its ID. It is used by the frontend when a user navigates to a scheme detail view (a feature planned for future implementation) and by external applications that wish to retrieve scheme information programmatically.
+
+#### 7.2.6 Categories Endpoint (GET /api/categories)
+
+The categories endpoint returns a sorted list of all scheme categories present in the database. It is used by the frontend to populate the category filter bar dynamically, ensuring that the filter bar always reflects the actual categories in the database rather than a hardcoded list.
+
+#### 7.2.7 Statistics Endpoint (GET /api/stats)
+
+The statistics endpoint provides analytics data derived from the SQLite query log. It returns four metrics: the total number of queries processed, the average number of results per query, a breakdown of queries by language, and a list of the ten most recent queries with their metadata.
+
+```json
+GET /api/stats
+Response: {
+  "total_queries": 47,
+  "avg_results_per_query": 4.8,
+  "queries_by_language": [
+    {"language": "en", "c": 28},
+    {"language": "hi", "c": 12},
+    {"language": "ta", "c": 5},
+    {"language": "te", "c": 2}
+  ],
+  "recent_queries": [...]
+}
+```
+
+This endpoint serves two purposes: it feeds the statistics counter in the frontend header, and it provides data for the analytics dashboard at the backend root URL.
+
+#### 7.2.8 Feedback Endpoint (POST /api/feedback)
+
+The feedback endpoint records anonymous user ratings of scheme relevance. It accepts a scheme ID, a boolean helpfulness rating, and the current language, and writes a record to the SQLite feedback table.
+
+The feedback data can be used to identify schemes that are frequently rated as unhelpful for specific query types, informing future improvements to the relevance scoring function and the scheme database content.
+
+#### 7.2.9 Analytics Dashboard (GET /)
+
+The analytics dashboard is a server-side rendered HTML page accessible at the root URL of the backend (http://127.0.0.1:5001/). It provides a visual overview of the system's operational status and usage statistics.
+
+**Live statistics panel**: Displays three key metrics in large numerals: the number of schemes loaded (15), the total number of queries processed, and the total number of feedback submissions received.
+
+**API endpoints table**: Lists all eight API endpoints with their HTTP methods, paths, descriptions, and clickable "Try ↗" links for GET endpoints.
+
+**Language breakdown table**: Shows the distribution of queries across the four supported languages, updated in real time from the SQLite query log.
+
+**Recent queries table**: Displays the ten most recent queries with their detected language, result count, and timestamp.
+
+**Category pills**: Displays all thirteen scheme categories as visual pills.
+
+**Auto-refresh**: The dashboard refreshes automatically every thirty seconds, providing a near-real-time view of system activity.
+
+#### 7.2.10 NLP Engine (nlp_engine.py)
+
+The NLP engine module implements the four-stage processing pipeline described in Section 5. It exposes three public functions: `detect_language`, `extract_intent`, and `process_query`.
+
+The `detect_language` function uses Unicode character range counting to identify the dominant script in the input text. The `extract_intent` function iterates through the intent keyword table and returns all matching categories. The `process_query` function orchestrates the complete pipeline and returns a structured result dictionary containing the detected language, intents, profile hints, and tokenised keywords.
+
+A fifth function, `score_scheme`, implements the relevance scoring formula and is called by the query endpoint to rank eligible schemes.
+
+#### 7.2.11 Eligibility Engine (eligibility.py)
+
+The eligibility engine module implements the six-rule filtering logic described in Section 5.6. It exposes four public functions: `load_schemes` (reads the JSON database), `check_eligibility` (evaluates a single scheme against a profile), `filter_schemes` (applies eligibility and keyword/category filters to the full database), and `get_scheme_by_id` (retrieves a single scheme by ID).
+
+The `filter_schemes` function is the workhorse of the eligibility engine. It iterates through all fifteen schemes, applies the eligibility check, applies optional category and keyword filters, and returns the list of matching schemes. The function is called multiple times by the query endpoint with progressively relaxed parameters until results are found.
+
+#### 7.2.12 TTS Engine (tts.py)
+
+The TTS engine module wraps the gTTS library and exposes two public functions: `text_to_speech` (converts a text string to MP3 bytes) and `build_scheme_summary` (constructs a spoken summary from a scheme record in the specified language).
+
+The `build_scheme_summary` function uses the `loc` helper pattern to retrieve language-specific field values, constructing a natural-sounding spoken summary that covers the scheme name, description, eligibility, benefits, and application procedure in the target language.
+
+#### 7.2.13 SQLite Database (cache.db)
+
+The SQLite database serves as the persistence layer for analytics and feedback data. It contains two tables:
+
+**query_log table**: Records each query with fields for query text, detected language, detected intents (as a JSON array), result count, and timestamp. This table is used by the statistics endpoint and the analytics dashboard.
+
+**feedback table**: Records each feedback submission with fields for scheme ID, helpfulness rating (0 or 1), language, and timestamp. This table is used to track which schemes are rated as helpful or unhelpful by users.
+
+The database is initialised by the `init_db.py` script, which creates both tables and populates a schemes cache table with the contents of the JSON database. The cache table is not used for query processing (the JSON file is used directly for performance reasons) but is available for external tools that prefer SQL queries over JSON parsing.
+
+---
+
+### 7.3 Standalone Demo Features (demo.html)
+
+The standalone demo.html file is a self-contained implementation of VoiceScheme that operates entirely within a single HTML file. It is forty-six kilobytes in size and requires no server, no npm, no Python, and no internet connection (except for the Leaflet.js CDN and OpenStreetMap tiles for the map feature).
+
+**Complete scheme database**: All fifteen government schemes are embedded as a JavaScript array with full multilingual content including names, descriptions, benefits, application procedures, documents, and eligibility criteria in all four languages.
+
+**Client-side NLP**: The intent detection, language detection, eligibility filtering, and relevance scoring logic is implemented in JavaScript, mirroring the Python backend logic.
+
+**Web Speech API voice input**: The same voice input functionality as the React frontend is implemented using vanilla JavaScript, with language-aware recognition and automatic query submission on final results.
+
+**Browser TTS**: The SpeechSynthesis API is used for audio output, reading scheme summaries aloud in the selected language.
+
+**Quick search buttons**: Five quick search buttons (BPL Farmer, Health, Housing, Pension, Skill) are provided for immediate exploration.
+
+**Category filter bar**: All fourteen category pills are rendered and functional, triggering client-side filtered queries.
+
+**Profile form**: The collapsible profile form with BPL checkbox, age, gender, category, and occupation fields is fully functional.
+
+**Feedback feature**: Each scheme card includes a thumbs up/down feedback row. Feedback state is stored in a JavaScript object and persists for the duration of the browser session.
+
+**Share feature**: Each scheme card includes a share button that invokes the Web Share API on mobile or copies scheme details to the clipboard on desktop.
+
+**Leaflet.js map**: The interactive CSC map with twelve markers is fully functional, loading Leaflet.js from the unpkg CDN.
+
+**Four-language support**: All UI labels, category names, and scheme content are available in English, Hindi, Tamil, and Telugu, with instant switching through the language bar.
+
+---
+
+## 8. Results and Discussion
 
 ### 7.1 Intent Detection Evaluation
 
@@ -596,9 +894,9 @@ She taps the audio button and hears the scheme summary read aloud in Tamil. She 
 
 ---
 
-## 8. Limitations and Future Directions
+## 9. Limitations and Future Directions
 
-### 8.1 Current Limitations
+### 9.1 Current Limitations
 
 **Scheme coverage**: The current database covers fifteen central government schemes. India operates over three hundred central schemes and thousands of state-specific schemes. Expanding coverage to include state-specific schemes would require a significantly larger database and a state-selection mechanism in the user interface.
 
@@ -610,7 +908,7 @@ She taps the audio button and hears the scheme summary read aloud in Tamil. She 
 
 **gTTS internet dependency**: The gTTS library requires internet connectivity to generate audio. In fully offline scenarios, the system falls back to the browser's SpeechSynthesis API, which may have lower audio quality and less natural prosody.
 
-### 8.2 Future Directions
+### 9.2 Future Directions
 
 **IndicBERT integration**: Replacing the keyword-based intent detection with a fine-tuned IndicBERT model would improve accuracy for complex, ambiguous, or colloquial queries. IndicBERT is a multilingual BERT model pre-trained on eleven Indian languages and has demonstrated strong performance on Indian language NLP tasks.
 
@@ -626,7 +924,7 @@ She taps the audio button and hears the scheme summary read aloud in Tamil. She 
 
 ---
 
-## 9. Conclusion
+## 10. Conclusion
 
 This chapter has presented VoiceScheme, a voice-first multilingual chatbot designed to bridge the welfare scheme awareness gap among rural BPL families in India. The system addresses four structural barriers — language inaccessibility, interface complexity, information fragmentation, and connectivity constraints — through a carefully designed architecture that prioritises accessibility, zero cost, and complete language coverage.
 
@@ -648,7 +946,7 @@ Future work will focus on expanding language and scheme coverage, integrating mo
 
 ---
 
-## References
+## 11. References
 
 1. Agarwal, S., and Bhatt, R. (2021). Conversational AI for Public Service Delivery: Design Principles and Implementation Challenges in the Indian Context. *Journal of e-Governance*, Vol. 44, No. 2, pp. 89–104.
 
