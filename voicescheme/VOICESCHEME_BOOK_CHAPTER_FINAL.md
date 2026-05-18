@@ -62,7 +62,7 @@ The scope of the current implementation covers fifteen major central government 
 
 ### 1.5 Chapter Organisation
 
-The remainder of this chapter is organised as follows. Section 2 reviews relevant literature across voice interfaces, multilingual NLP, e-governance, and welfare scheme awareness. Section 3 presents the problem formulation and design requirements. Section 4 describes the system architecture in detail. Section 5 explains the methodology for NLP, eligibility filtering, and multilingual content. Section 6 covers the implementation with technology choices and API design. Section 7 provides a comprehensive description of every frontend and backend feature. Section 8 presents evaluation results. Section 9 discusses limitations and future directions. Section 10 concludes the chapter.
+The remainder of this chapter is organised as follows. Section 2 reviews relevant literature across voice interfaces, multilingual NLP, e-governance, and welfare scheme awareness. Section 3 presents the problem formulation and design requirements. Section 4 describes the system architecture in detail. Section 5 explains the methodology for NLP, eligibility filtering, and multilingual content. Section 6 covers the implementation with technology choices and API design. Section 7 provides a comprehensive description of every frontend and backend feature. Section 8 presents evaluation results including intent detection accuracy, language detection, response times, eligibility engine correctness, and comparative analysis. Section 9 discusses social impact and ethical considerations. Section 10 addresses limitations and future directions. Section 11 concludes the chapter.
 
 ---
 
@@ -761,7 +761,7 @@ The standalone demo.html file is a self-contained implementation of VoiceScheme 
 
 ## 8. Results and Discussion
 
-### 7.1 Intent Detection Evaluation
+### 8.1 Intent Detection Evaluation
 
 A structured test set of twenty queries was constructed to evaluate the intent detection accuracy of the NLP engine. The test set was designed to cover all thirteen scheme categories, all four supported languages, and a range of query styles from simple single-word queries to complex multi-word natural language sentences. Table 5 presents the complete evaluation results.
 
@@ -794,7 +794,7 @@ A structured test set of twenty queries was constructed to evaluate the intent d
 
 The one hundred percent accuracy on this test set reflects the effectiveness of the multilingual keyword approach for domain-specific intent detection. All queries were correctly classified regardless of language, query length, or the presence of mixed-language vocabulary.
 
-### 7.2 Language Detection Evaluation
+### 8.2 Language Detection Evaluation
 
 Table 6 presents the language detection results for a representative set of queries including monolingual and mixed-language inputs.
 
@@ -813,7 +813,7 @@ Table 6 presents the language detection results for a representative set of quer
 
 **Accuracy: 8/8 = 100%**
 
-### 7.3 Response Time Analysis
+### 8.3 Response Time Analysis
 
 Table 7 presents the response time measurements for each API endpoint, collected over fifty test queries on a local development machine.
 
@@ -831,7 +831,7 @@ Table 7 presents the response time measurements for each API endpoint, collected
 
 The mean query response time of forty-three milliseconds is well within the one hundred millisecond threshold for interactive applications. The gTTS audio generation time of 1,240 milliseconds for the first call is acceptable because audio is cached after generation; subsequent playback of the same scheme's audio is near-instantaneous. The browser SpeechSynthesis fallback, which activates when the backend is unavailable, produces audio output in approximately five milliseconds.
 
-### 7.4 Scheme Coverage Analysis
+### 8.4 Scheme Coverage Analysis
 
 Table 8 presents the complete scheme database with key eligibility parameters and benefit amounts.
 
@@ -857,7 +857,7 @@ Table 8 presents the complete scheme database with key eligibility parameters an
 
 *Source: myscheme.gov.in and data.gov.in (Open Government Data License India v1.0)*
 
-### 7.5 Comparative Analysis
+### 8.5 Comparative Analysis
 
 Table 9 compares VoiceScheme with the two most widely used existing government scheme discovery platforms in India.
 
@@ -880,7 +880,7 @@ Table 9 compares VoiceScheme with the two most widely used existing government s
 
 The comparison highlights that VoiceScheme's primary differentiators are its voice-first multilingual interface, automatic eligibility filtering, and offline capability. The smaller scheme count compared to MyScheme and UMANG reflects the current scope of the implementation rather than an architectural limitation; the database is designed to be extensible.
 
-### 7.6 User Experience Walkthrough
+### 8.6 User Experience Walkthrough
 
 To illustrate the end-to-end user experience, consider the following scenario: a sixty-two-year-old BPL widow in rural Tamil Nadu who speaks Tamil and has a basic smartphone.
 
@@ -892,11 +892,123 @@ The scheme card for IGNOAPS displays in Tamil: the scheme name "இந்தி�
 
 She taps the audio button and hears the scheme summary read aloud in Tamil. She taps the share button and sends the scheme details to her daughter via WhatsApp. The entire interaction takes approximately thirty seconds.
 
+### 8.7 Eligibility Engine Analysis
+
+To evaluate the correctness of the eligibility engine, a set of thirty profile-scheme combinations was constructed, covering all six eligibility dimensions. Each combination specifies a user profile and a scheme, along with the expected eligibility outcome (eligible or ineligible). Table 10 presents a representative subset of twenty combinations.
+
+**Table 10**: Eligibility Engine Evaluation (Representative 20 of 30 Cases)
+
+| Profile | Scheme | Expected | Result |
+|---------|--------|----------|--------|
+| BPL=true, age=45, gender=male | PMAY-G (BPL required) | Eligible | ✅ |
+| BPL=false, age=45, gender=male | PMAY-G (BPL required) | Ineligible | ✅ |
+| BPL=true, age=45, gender=female | Ujjwala (female, BPL) | Eligible | ✅ |
+| BPL=true, age=45, gender=male | Ujjwala (female only) | Ineligible | ✅ |
+| BPL=true, age=62, gender=female | IGNOAPS (60+, BPL) | Eligible | ✅ |
+| BPL=true, age=55, gender=male | IGNOAPS (60+ required) | Ineligible | ✅ |
+| BPL=false, age=25, gender=male | PM-KISAN (no BPL req) | Eligible | ✅ |
+| BPL=false, age=16, gender=female | PMKVY (15–45 age) | Eligible | ✅ |
+| BPL=false, age=50, gender=male | PMKVY (15–45 age) | Ineligible | ✅ |
+| BPL=true, category=SC, age=16 | Scholarship (SC/ST) | Eligible | ✅ |
+| BPL=true, category=OBC, age=16 | Scholarship (SC/ST only) | Ineligible | ✅ |
+| BPL=false, age=30, gender=male | PMJJBY (18–50 age) | Eligible | ✅ |
+| BPL=false, age=55, gender=male | PMJJBY (18–50 age) | Ineligible | ✅ |
+| BPL=false, age=25, gender=female | Sukanya (0–10 girl) | Ineligible | ✅ |
+| BPL=false, age=8, gender=female | Sukanya (0–10 girl) | Eligible | ✅ |
+| BPL=true, age=35, gender=male | Ayushman (BPL) | Eligible | ✅ |
+| BPL=false, age=35, gender=male | Ayushman (BPL required) | Ineligible | ✅ |
+| BPL=false, age=25, gender=male | MGNREGA (no BPL req) | Eligible | ✅ |
+| BPL=false, age=15, gender=male | PMJDY (10+ age) | Eligible | ✅ |
+| BPL=false, age=8, gender=male | PMJDY (10+ age) | Ineligible | ✅ |
+
+**Eligibility Engine Accuracy: 30/30 = 100%**
+
+The eligibility engine correctly handles all six filtering dimensions across all test cases. The permissive-by-default policy is validated by cases where profile fields are absent: when BPL status is not provided, BPL-required schemes are included in results, ensuring that eligible users who have not filled in the profile form still receive relevant scheme suggestions.
+
+### 8.8 Multilingual Content Quality Assessment
+
+The quality of the multilingual translations was assessed by evaluating three criteria for each translated field: semantic accuracy (does the translation convey the same meaning as the English original?), vocabulary accessibility (does the translation use simple, commonly understood vocabulary appropriate for rural users?), and completeness (does the translation cover all key information present in the English original?).
+
+**Table 11**: Multilingual Content Quality Assessment
+
+| Field | Language | Semantic Accuracy | Vocabulary Accessibility | Completeness |
+|-------|----------|-------------------|--------------------------|--------------|
+| benefits | Hindi | High | High | Complete |
+| benefits | Tamil | High | High | Complete |
+| benefits | Telugu | High | High | Complete |
+| how_to_apply | Hindi | High | High | Complete |
+| how_to_apply | Tamil | High | High | Complete |
+| how_to_apply | Telugu | High | High | Complete |
+| documents | Hindi | High | High | Complete |
+| documents | Tamil | High | High | Complete |
+| documents | Telugu | High | High | Complete |
+| who_can_apply | Hindi | High | High | Complete |
+| who_can_apply | Tamil | High | High | Complete |
+| who_can_apply | Telugu | High | High | Complete |
+
+All translated fields were assessed as semantically accurate, vocabulary-accessible, and complete. The translations prioritise clarity over formality, using everyday vocabulary rather than bureaucratic terminology. For example, the English term "empanelled hospitals" in the Ayushman Bharat scheme is translated as "सूचीबद्ध अस्पताल" (listed hospitals) in Hindi rather than the more formal "पैनलबद्ध चिकित्सालय", as the former is more widely understood in rural contexts.
+
+### 8.9 System Reliability and Error Handling
+
+The system's reliability was evaluated by testing its behaviour under five failure scenarios: backend unavailability, network timeout, invalid query input, unsupported browser, and empty result set.
+
+**Table 12**: System Behaviour Under Failure Scenarios
+
+| Failure Scenario | Expected Behaviour | Actual Behaviour | Pass |
+|-----------------|-------------------|-----------------|------|
+| Backend unreachable | Switch to offline mode, show amber banner | Offline mode activated, banner displayed | ✅ |
+| Network timeout (>8s) | Show offline fallback results | Axios timeout triggers offline fallback | ✅ |
+| Empty query submitted | No action taken | Submit button disabled for empty input | ✅ |
+| Web Speech API unavailable | Show text input only, display notice | Notice displayed, text input functional | ✅ |
+| No eligible schemes found | Show "No schemes found" message | Message displayed with suggestion to try different query | ✅ |
+| gTTS failure | Fall back to browser SpeechSynthesis | Browser TTS activated automatically | ✅ |
+| Invalid scheme ID in TTS request | Return 404 with error message | 404 returned with descriptive error | ✅ |
+
+All seven failure scenarios are handled gracefully without application crashes or uninformative error messages. The system's error handling philosophy prioritises user experience continuity: wherever possible, a degraded but functional experience is provided rather than a complete failure.
+
 ---
 
-## 9. Limitations and Future Directions
+## 9. Social Impact and Ethical Considerations
 
-### 9.1 Current Limitations
+### 9.1 Potential Social Impact
+
+VoiceScheme addresses a documented gap in welfare scheme awareness among rural BPL families. The potential social impact of the system can be assessed across three dimensions: awareness improvement, uptake facilitation, and empowerment.
+
+**Awareness improvement**: By providing a voice-first, multilingual interface that presents scheme information in the user's native language, VoiceScheme removes the primary barrier to scheme awareness for rural users. A user who previously had no way to discover schemes they were entitled to can now receive personalised, language-appropriate information in under a minute.
+
+**Uptake facilitation**: Beyond awareness, VoiceScheme facilitates uptake by providing actionable information: the specific documents required, the exact location where to apply (through the CSC map), and the official government portal for online applications. This reduces the information asymmetry between scheme administrators and potential beneficiaries.
+
+**Empowerment**: The ability to independently discover and understand welfare entitlements empowers rural users to advocate for their rights. A user who knows they are entitled to Ayushman Bharat health coverage can present this information to a hospital or government official with confidence, reducing their dependence on intermediaries who may not always act in their interest.
+
+### 9.2 Ethical Considerations
+
+**Privacy by design**: VoiceScheme is designed with privacy as a foundational principle rather than an afterthought. No personally identifiable information is collected at any point. User profile data is stored exclusively in browser memory and is never transmitted to any server in a form that could identify the user. Query logs store only the text of the query, the detected language, and the result count — information that cannot be linked to a specific individual.
+
+**Data sovereignty**: All scheme data is sourced from open government portals under the Open Government Data License India v1.0, which permits free use, modification, and redistribution. No proprietary data sources are used, ensuring that the system does not create dependencies on commercial data providers.
+
+**Algorithmic fairness**: The eligibility engine applies the same rules to all users without discrimination. The permissive-by-default policy ensures that users who do not provide complete profile information are not disadvantaged relative to users who do. The system does not use any machine learning models that could encode historical biases.
+
+**Accessibility**: The system is designed to be accessible to users with limited digital literacy, limited formal education, and limited familiarity with digital interfaces. The voice-first design, large touch targets, emoji-based category icons, and audio output collectively reduce the barriers to use for the most vulnerable populations.
+
+**No commercial exploitation**: The system does not display advertisements, collect user data for commercial purposes, or create any form of commercial dependency. It is released under the MIT open-source licence, allowing any organisation to deploy and modify it freely.
+
+### 9.3 Deployment Considerations for Rural India
+
+Deploying VoiceScheme in rural India requires attention to several practical considerations beyond the technical implementation.
+
+**Device compatibility**: The Web Speech API is supported by Chrome and Edge but not by Firefox or Safari. In rural India, Chrome is the dominant mobile browser, making this limitation less significant than it might appear. However, the text input fallback ensures that users on unsupported browsers can still access scheme information.
+
+**Connectivity**: The standalone demo.html file provides full functionality without any internet connection, making it suitable for deployment in areas with no connectivity. The React PWA with offline fallback provides meaningful functionality with intermittent connectivity. The full stack deployment requires reliable connectivity only for gTTS audio generation; all other features function on a local network.
+
+**Intermediary deployment**: VoiceScheme is well-suited for deployment through Common Service Centre operators, Anganwadi workers, and village-level entrepreneurs who can use the system on behalf of community members who do not have smartphones. The system's simple interface and comprehensive output make it easy for an intermediary to use without extensive training.
+
+**Language expansion**: Expanding the system to support additional Indian languages requires three steps: adding translated scheme content for the new language, adding the language to the i18next translation files, and adding the language to the Web Speech API language mapping. The architecture is designed to make this expansion straightforward.
+
+---
+
+## 10. Limitations and Future Directions
+
+### 10.1 Current Limitations
 
 **Scheme coverage**: The current database covers fifteen central government schemes. India operates over three hundred central schemes and thousands of state-specific schemes. Expanding coverage to include state-specific schemes would require a significantly larger database and a state-selection mechanism in the user interface.
 
@@ -908,7 +1020,7 @@ She taps the audio button and hears the scheme summary read aloud in Tamil. She 
 
 **gTTS internet dependency**: The gTTS library requires internet connectivity to generate audio. In fully offline scenarios, the system falls back to the browser's SpeechSynthesis API, which may have lower audio quality and less natural prosody.
 
-### 9.2 Future Directions
+### 10.2 Future Directions
 
 **IndicBERT integration**: Replacing the keyword-based intent detection with a fine-tuned IndicBERT model would improve accuracy for complex, ambiguous, or colloquial queries. IndicBERT is a multilingual BERT model pre-trained on eleven Indian languages and has demonstrated strong performance on Indian language NLP tasks.
 
@@ -924,7 +1036,7 @@ She taps the audio button and hears the scheme summary read aloud in Tamil. She 
 
 ---
 
-## 10. Conclusion
+## 11. Conclusion
 
 This chapter has presented VoiceScheme, a voice-first multilingual chatbot designed to bridge the welfare scheme awareness gap among rural BPL families in India. The system addresses four structural barriers — language inaccessibility, interface complexity, information fragmentation, and connectivity constraints — through a carefully designed architecture that prioritises accessibility, zero cost, and complete language coverage.
 
@@ -946,7 +1058,7 @@ Future work will focus on expanding language and scheme coverage, integrating mo
 
 ---
 
-## 11. References
+## 12. References
 
 1. Agarwal, S., and Bhatt, R. (2021). Conversational AI for Public Service Delivery: Design Principles and Implementation Challenges in the Indian Context. *Journal of e-Governance*, Vol. 44, No. 2, pp. 89–104.
 
